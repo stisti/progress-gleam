@@ -9,7 +9,7 @@ pub fn main() {
   io.println("Final byte count " <> int.to_string(final_byte_count))
 }
 
-fn output(count, bytes) {
-  io.print(bytes)
-  count + string.length(bytes)
+fn output(byte_count, input_chunk) {
+  io.print(input_chunk)
+  byte_count + string.length(input_chunk)
 }
