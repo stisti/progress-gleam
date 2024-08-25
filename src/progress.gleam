@@ -2,41 +2,28 @@ import gleam/int
 import gleam/io
 import gleam/iterator
 import gleam/string
-import gleam/erlang/process
+import gleam/otp/actor
+import gleam/erlang/process.{type Subject}
 import stdin.{stdin}
 
-type Processes {
-  SpeedDisplay
+pub type State {
+  OutputState(total: Int, subject: Subject(Int))
 }
 
 pub fn main() {
-  let speed_display_pid = process.start(speed_display, True)
-  process.register(speed_display_pid, SpeedDisplay)
-  let final_byte_count = stdin() |> iterator.fold(from: 0, with: output)
-  io.println("Final byte count " <> int.to_string(final_byte_count))
+  let assert Ok(subject) = actor.start(0, speed_display)
+  let output_state = OutputState(total: 0, subject: subject)
+  let final_state = stdin() |> iterator.fold(from: output_state, with: output)
+  io.println("Final byte count " <> int.to_string(final_state.total))
 }
 
-fn output(byte_count, input_chunk) {
+fn output(output_state: State, input_chunk: String) {
   io.print(input_chunk)
-  let new_byte_count = byte_count + string.length(input_chunk)
-  send_byte_count(new_byte_count)
-  new_byte_count
+  actor.send(output_state.subject, string.length(input_chunk))
+  OutputState(total: output_state.total + string.length(input_chunk), subject: output_state.subject)
 }
 
-fn send_byte_count(byte_count) {
-  case process.whereis("speed_display") {
-    Ok(pid) -> process.send(pid, #(byte_count, process.self()))
-    Error(_) -> Nil
-  }
-}
-
-fn speed_display() {
-  process.sleep(1000)
-  case process.receive(100) {
-    Ok(#(byte_count, _sender)) -> {
-      io.print_error("Speed: " <> int.to_string(byte_count) <> " bytes/s\n")
-      speed_display(#())
-    }
-    Error(Nil) -> speed_display(#())
-  }
+fn speed_display(byte_count: Int, total_byte_count: Int) -> actor.Next(Int, Int) {
+  io.print_error("Speed: " <> int.to_string(byte_count) <> " bytes/s\n")
+  actor.continue(total_byte_count + byte_count)
 }
