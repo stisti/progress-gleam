@@ -1,29 +1,55 @@
+import birl.{type Time}
+import gleam/erlang/process.{type Subject}
 import gleam/int
 import gleam/io
 import gleam/iterator
-import gleam/string
 import gleam/otp/actor
-import gleam/erlang/process.{type Subject}
+import gleam/string
 import stdin.{stdin}
 
 pub type State {
-  OutputState(total: Int, subject: Subject(Int))
+  DisplayState(total: Int, start_time: Time, last_display_update: Time)
 }
 
 pub fn main() {
-  let assert Ok(subject) = actor.start(0, speed_display)
-  let output_state = OutputState(total: 0, subject: subject)
-  let final_state = stdin() |> iterator.fold(from: output_state, with: output)
-  io.println("Final byte count " <> int.to_string(final_state.total))
+  let start_time = birl.now()
+  let assert Ok(subject) =
+    actor.start(
+      DisplayState(
+        total: 0,
+        start_time: start_time,
+        last_display_update: birl.unix_epoch,
+      ),
+      speed_display,
+    )
+  io.debug(subject)
+  let _ = stdin() |> iterator.fold(from: subject, with: output)
+  io.println("Done.")
 }
 
-fn output(output_state: State, input_chunk: String) {
+fn output(display_actor: Subject(Int), input_chunk: String) {
   io.print(input_chunk)
-  actor.send(output_state.subject, string.length(input_chunk))
-  OutputState(total: output_state.total + string.length(input_chunk), subject: output_state.subject)
+  io.debug(display_actor)
+  actor.send(display_actor, string.length(input_chunk))
+  display_actor
 }
 
-fn speed_display(byte_count: Int, total_byte_count: Int) -> actor.Next(Int, Int) {
-  io.print_error("Speed: " <> int.to_string(byte_count) <> " bytes/s\n")
-  actor.continue(total_byte_count + byte_count)
+fn speed_display(
+  byte_count: Int,
+  display_state: State,
+) -> actor.Next(Int, State) {
+  io.debug("kukkuu")
+  let new_total = display_state.total + byte_count
+  let avg_speed =
+    new_total
+    / int.max(
+      { birl.to_unix_milli(birl.now()) - birl.to_unix_milli(display_state.start_time) },
+      1,
+    ) / 1000
+  io.print_error("Avg speed: " <> int.to_string(avg_speed) <> " bytes/s\n")
+  actor.continue(DisplayState(
+    total: new_total,
+    start_time: display_state.start_time,
+    last_display_update: birl.now(),
+  ))
 }
