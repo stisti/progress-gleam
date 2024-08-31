@@ -50,8 +50,9 @@ fn speed_display(
       let avg_speed =
         new_total
         / {
-          birl.to_unix_milli(birl.now())
-          - birl.to_unix_milli(display_state.start_time)
+          birl.now()
+          |> birl.difference(display_state.start_time)
+          |> duration.blur_to(duration.MilliSecond)
         }
       io.print_error(
         "Bytes: "
