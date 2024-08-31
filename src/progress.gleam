@@ -1,4 +1,5 @@
 import birl.{type Time}
+import birl/duration
 import gleam/erlang/process.{type Subject}
 import gleam/int
 import gleam/io
@@ -36,13 +37,37 @@ fn speed_display(
   display_state: State,
 ) -> actor.Next(Int, State) {
   let new_total = display_state.total + byte_count
-  let avg_speed =
-    new_total
-    / { birl.to_unix_milli(birl.now()) - birl.to_unix_milli(display_state.start_time) }
-  io.print_error("Bytes: " <> int.to_string(new_total) <> ", avg speed: " <> int.to_string(avg_speed) <> " bytes/ms\r")
-  actor.continue(DisplayState(
-    total: new_total,
-    start_time: display_state.start_time,
-    last_display_update: birl.now(),
-  ))
+
+  case
+    birl.difference(birl.now(), display_state.last_display_update)
+    |> duration.blur_to(duration.Second)
+    > 1
+  {
+    True -> {
+      let avg_speed =
+        new_total
+        / {
+          birl.to_unix_milli(birl.now())
+          - birl.to_unix_milli(display_state.start_time)
+        }
+      io.print_error(
+        "Bytes: "
+        <> int.to_string(new_total)
+        <> ", avg speed: "
+        <> int.to_string(avg_speed)
+        <> " bytes/ms\r",
+      )
+      actor.continue(DisplayState(
+        total: new_total,
+        start_time: display_state.start_time,
+        last_display_update: birl.now(),
+      ))
+    }
+    False ->
+      actor.continue(DisplayState(
+        total: new_total,
+        start_time: display_state.start_time,
+        last_display_update: display_state.last_display_update,
+      ))
+  }
 }
