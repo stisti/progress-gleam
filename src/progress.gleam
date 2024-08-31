@@ -22,14 +22,11 @@ pub fn main() {
       ),
       speed_display,
     )
-  io.debug(subject)
   let _ = stdin() |> iterator.fold(from: subject, with: output)
-  io.println("Done.")
 }
 
 fn output(display_actor: Subject(Int), input_chunk: String) {
   io.print(input_chunk)
-  io.debug(display_actor)
   actor.send(display_actor, string.length(input_chunk))
   display_actor
 }
@@ -38,15 +35,11 @@ fn speed_display(
   byte_count: Int,
   display_state: State,
 ) -> actor.Next(Int, State) {
-  io.debug("kukkuu")
   let new_total = display_state.total + byte_count
   let avg_speed =
     new_total
-    / int.max(
-      { birl.to_unix_milli(birl.now()) - birl.to_unix_milli(display_state.start_time) },
-      1,
-    ) / 1000
-  io.print_error("Avg speed: " <> int.to_string(avg_speed) <> " bytes/s\n")
+    / { birl.to_unix_milli(birl.now()) - birl.to_unix_milli(display_state.start_time) }
+  io.print_error("Bytes: " <> int.to_string(new_total) <> ", avg speed: " <> int.to_string(avg_speed) <> " bytes/ms\r")
   actor.continue(DisplayState(
     total: new_total,
     start_time: display_state.start_time,
