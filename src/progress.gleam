@@ -38,12 +38,15 @@ fn speed_display(
 ) -> actor.Next(Int, State) {
   let new_total = display_state.total + byte_count
 
+  // Has it been >1 second since last time speed diplay was updated?
   case
-    birl.difference(birl.now(), display_state.last_display_update)
+    birl.now()
+    |> birl.difference(display_state.last_display_update)
     |> duration.blur_to(duration.Second)
     > 1
   {
     True -> {
+      // Update speed display
       let avg_speed =
         new_total
         / {
@@ -64,6 +67,7 @@ fn speed_display(
       ))
     }
     False ->
+      // Skip speed display update to improve performance
       actor.continue(DisplayState(
         total: new_total,
         start_time: display_state.start_time,
