@@ -1,26 +1,24 @@
-import birl.{type Time}
-import birl/duration
 import gleam/erlang/process.{type Subject}
 import gleam/int
 import gleam/io
 import gleam/iterator
-import gleam/order
 import gleam/otp/actor
 import gleam/string
 import stdin.{stdin}
+import timestamps.{type Timestamp}
 
 pub type State {
-  DisplayState(total: Int, start_time: Time, last_display_update: Time)
+  DisplayState(total: Int, start_time: Timestamp, last_display_update: Timestamp)
 }
 
 pub fn main() {
-  let start_time = birl.utc_now()
+  let start_time = timestamps.new()
   let assert Ok(subject) =
     actor.start(
       DisplayState(
         total: 0,
         start_time: start_time,
-        last_display_update: birl.unix_epoch,
+        last_display_update: timestamps.from_millis(0),
       ),
       speed_display,
     )
@@ -37,12 +35,11 @@ fn speed_display(
   byte_count: Int,
   display_state: State,
 ) -> actor.Next(Int, State) {
-  let diff = birl.difference(birl.utc_now(), display_state.last_display_update)
-  let too_early = duration.compare(diff, duration.seconds(5)) == order.Lt
+  let millisec_since_last_update =
+    timestamps.value_of(timestamps.new()) - timestamps.value_of(display_state.last_display_update)
   let new_total = display_state.total + byte_count
 
-  // Has it been >5 seconds since last time speed display was updated?
-  case too_early {
+  case millisec_since_last_update < 1000 {
     True ->
       // Skip speed display update to improve performance
       actor.continue(DisplayState(
@@ -53,23 +50,22 @@ fn speed_display(
     False -> {
       // Update speed display
       let avg_speed =
-        new_total
+        new_total * 1000
         / {
-          birl.utc_now()
-          |> birl.difference(display_state.start_time)
-          |> duration.blur_to(duration.MilliSecond)
+          timestamps.value_of(timestamps.new())
+          - timestamps.value_of(display_state.start_time)
         }
       io.print_error(
         "Bytes: "
         <> int.to_string(new_total)
         <> ", avg speed: "
         <> int.to_string(avg_speed)
-        <> " bytes/ms\r",
+        <> " bytes/s\r",
       )
       actor.continue(DisplayState(
         total: new_total,
         start_time: display_state.start_time,
-        last_display_update: birl.utc_now(),
+        last_display_update: timestamps.new(),
       ))
     }
   }
